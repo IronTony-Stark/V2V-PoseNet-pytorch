@@ -2,9 +2,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 import torch.backends.cudnn as cudnn
 import argparse
 import os
+import platform
 
 from lib.solver import train_epoch, val_epoch, test_epoch
 from lib.sampler import ChunkSampler
@@ -27,7 +29,7 @@ from datasets.msra_hand import MARAHandDataset
 ## Some helpers
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch Hand Keypoints Estimation Training')
-    #parser.add_argument('--resume', 'r', action='store_true', help='resume from checkpoint')
+    # parser.add_argument('--resume', 'r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--resume', '-r', default=-1, type=int, help='resume after epoch')
     args = parser.parse_args()
     return args
@@ -35,9 +37,7 @@ def parse_args():
 
 #######################################################################################
 ## Configurations
-#print('Warning: disable cudnn for batchnorm first, or just use only cuda instead!')
-torch.backends.cudnn.enabled = False
-print('cudnn.enabled: ', torch.backends.cudnn.enabled)
+# print('Warning: disable cudnn for batchnorm first, or just use only cuda instead!')
 
 # When we need to resume training, enable randomness to avoid seeing the determinstic
 # (agumented) samples many times.
@@ -62,17 +62,22 @@ epochs_num = 0
 
 batch_size = 12
 
+loader_num_workers = 6 if platform.system() != 'Windows' else 0
 
 #######################################################################################
 ## Data, transform, dataset and loader
 # Data
 print('==> Preparing data ..')
+
 data_dir = r'/gpfs/space/home/zaliznyi/data/cvpr15_MSRAHandGestureDB'
 center_dir = r'/gpfs/space/home/zaliznyi/projects/V2V-PoseNet-pytorch/datasets/msra_center'
+
+# data_dir = r'C:/Data/cvpr15_MSRAHandGestureDB'
+# center_dir = r'C:/Projects/V2V-PoseNet-pytorch/datasets/msra_center'
+
 keypoints_num = 21
 test_subject_id = 3
 cubic_size = 200
-
 
 # Transform
 voxelization_train = V2VVoxelization(cubic_size=200, augmentation=True)
@@ -81,28 +86,27 @@ voxelization_val = V2VVoxelization(cubic_size=200, augmentation=False)
 
 def transform_train(sample):
     points, keypoints, refpoint = sample['points'], sample['joints'], sample['refpoint']
-    assert(keypoints.shape[0] == keypoints_num)
+    assert (keypoints.shape[0] == keypoints_num)
     input, heatmap = voxelization_train({'points': points, 'keypoints': keypoints, 'refpoint': refpoint})
     return (torch.from_numpy(input), torch.from_numpy(heatmap))
 
 
 def transform_val(sample):
     points, keypoints, refpoint = sample['points'], sample['joints'], sample['refpoint']
-    assert(keypoints.shape[0] == keypoints_num)
+    assert (keypoints.shape[0] == keypoints_num)
     input, heatmap = voxelization_val({'points': points, 'keypoints': keypoints, 'refpoint': refpoint})
     return (torch.from_numpy(input), torch.from_numpy(heatmap))
 
 
 # Dataset and loader
 train_set = MARAHandDataset(data_dir, center_dir, 'train', test_subject_id, transform_train)
-train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=6)
-#train_num = 1
-#train_loader = torch.utils.data.DataLoader(train_set, batch_size=1, shuffle=False, num_workers=6,sampler=ChunkSampler(train_num, 0))
+train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=loader_num_workers)
+# train_num = 1
+# train_loader = torch.utils.data.DataLoader(train_set, batch_size=1, shuffle=False, num_workers=6,sampler=ChunkSampler(train_num, 0))
 
 # No separate validation dataset, just use test dataset instead
 val_set = MARAHandDataset(data_dir, center_dir, 'test', test_subject_id, transform_val)
-val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=6)
-
+val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
 
 #######################################################################################
 ## Model, criterion and optimizer
@@ -110,15 +114,15 @@ print('==> Constructing model ..')
 net = V2VModel(input_channels=1, output_channels=keypoints_num)
 
 net = net.to(device, dtype)
-#if device == torch.device('cuda'):
-#    torch.backends.cudnn.enabled = True
-#    cudnn.benchmark = True
-#    print('cudnn.enabled: ', torch.backends.cudnn.enabled)
+# if device == torch.device('cuda'):
+#     torch.backends.cudnn.enabled = True
+#     cudnn.benchmark = True
+print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 criterion = nn.MSELoss()
 
 optimizer = optim.Adam(net.parameters())
-#optimizer = optim.RMSprop(net.parameters(), lr=2.5e-4)
+# optimizer = optim.RMSprop(net.parameters(), lr=2.5e-4)
 
 
 #######################################################################################
@@ -126,17 +130,16 @@ optimizer = optim.Adam(net.parameters())
 if resume_train:
     # Load checkpoint
     epoch = resume_after_epoch
-    checkpoint_file = os.path.join(checkpoint_dir, 'epoch'+str(epoch)+'.pth')
+    checkpoint_file = os.path.join(checkpoint_dir, 'epoch' + str(epoch) + '.pth')
 
     print('==> Resuming from checkpoint after epoch {} ..'.format(epoch))
     assert os.path.isdir(checkpoint_dir), 'Error: no checkpoint directory found!'
     assert os.path.isfile(checkpoint_file), 'Error: no checkpoint file of epoch {}'.format(epoch)
 
-    checkpoint = torch.load(os.path.join(checkpoint_dir, 'epoch'+str(epoch)+'.pth'))
+    checkpoint = torch.load(os.path.join(checkpoint_dir, 'epoch' + str(epoch) + '.pth'))
     net.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     start_epoch = checkpoint['epoch'] + 1
-
 
 #######################################################################################
 ## Train and Validate
@@ -148,14 +151,13 @@ for epoch in range(start_epoch, start_epoch + epochs_num):
 
     if save_checkpoint and epoch % checkpoint_per_epochs == 0:
         if not os.path.exists(checkpoint_dir): os.mkdir(checkpoint_dir)
-        checkpoint_file = os.path.join(checkpoint_dir, 'epoch'+str(epoch)+'.pth')
+        checkpoint_file = os.path.join(checkpoint_dir, 'epoch' + str(epoch) + '.pth')
         checkpoint = {
             'model_state_dict': net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'epoch': epoch
         }
         torch.save(checkpoint, checkpoint_file)
-
 
 #######################################################################################
 ## Test
@@ -181,7 +183,7 @@ class BatchResultCollector():
         self.transform_output = transform_output
         self.keypoints = None
         self.idx = 0
-    
+
     def __call__(self, data_batch):
         inputs_batch, outputs_batch, extra_batch = data_batch
         outputs_batch = outputs_batch.cpu().numpy()
@@ -193,8 +195,8 @@ class BatchResultCollector():
             # Initialize keypoints until dimensions awailable now
             self.keypoints = np.zeros((self.samples_num, *keypoints_batch.shape[1:]))
 
-        batch_size = keypoints_batch.shape[0] 
-        self.keypoints[self.idx:self.idx+batch_size] = keypoints_batch
+        batch_size = keypoints_batch.shape[0]
+        self.keypoints[self.idx:self.idx + batch_size] = keypoints_batch
         self.idx += batch_size
 
     def get_result(self):
@@ -202,6 +204,8 @@ class BatchResultCollector():
 
 
 print('Test on test dataset ..')
+
+
 def save_keypoints(filename, keypoints):
     # Reshape one sample keypoints into one line
     keypoints = keypoints.reshape(keypoints.shape[0], -1)
@@ -209,17 +213,16 @@ def save_keypoints(filename, keypoints):
 
 
 test_set = MARAHandDataset(data_dir, center_dir, 'test', test_subject_id, transform_test)
-test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=6)
+test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
 test_res_collector = BatchResultCollector(len(test_set), transform_output)
 
 test_epoch(net, test_loader, test_res_collector, device, dtype)
 keypoints_test = test_res_collector.get_result()
 save_keypoints('./test_res.txt', keypoints_test)
 
-
 print('Fit on train dataset ..')
 fit_set = MARAHandDataset(data_dir, center_dir, 'train', test_subject_id, transform_test)
-fit_loader = torch.utils.data.DataLoader(fit_set, batch_size=batch_size, shuffle=False, num_workers=6)
+fit_loader = DataLoader(fit_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
 fit_res_collector = BatchResultCollector(len(fit_set), transform_output)
 
 test_epoch(net, fit_loader, fit_res_collector, device, dtype)

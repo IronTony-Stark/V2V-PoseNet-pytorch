@@ -17,7 +17,7 @@ def train_epoch(model, criterion, optimizer, train_loader, device=torch.device('
 
         train_loss += loss.item()
         progress_bar(batch_idx, len(train_loader), 'Loss: {0:.4e}'.format(train_loss/(batch_idx+1)))
-        #print('loss: {0: .4e}'.format(train_loss/(batch_idx+1)))
+        # print('loss: {0: .4e}'.format(train_loss/(batch_idx+1)))
 
 
 def val_epoch(model, criterion, val_loader, device=torch.device('cuda'), dtype=torch.float):
@@ -32,7 +32,7 @@ def val_epoch(model, criterion, val_loader, device=torch.device('cuda'), dtype=t
 
             val_loss += loss.item()
             progress_bar(batch_idx, len(val_loader), 'Loss: {0:.4e}'.format(val_loss/(batch_idx+1)))
-            #print('loss: {0: .4e}'.format(val_loss/(batch_idx+1)))
+            # print('loss: {0: .4e}'.format(val_loss/(batch_idx+1)))
 
 
 def test_epoch(model, test_loader, result_collector, device=torch.device('cuda'), dtype=torch.float):
@@ -44,3 +44,4 @@ def test_epoch(model, test_loader, result_collector, device=torch.device('cuda')
             result_collector((inputs, outputs, extra))
 
             progress_bar(batch_idx, len(test_loader))
+            # print('batch: {0}/{1}'.format(batch_idx, len(test_loader)))
