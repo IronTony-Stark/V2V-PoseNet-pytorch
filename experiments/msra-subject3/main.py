@@ -35,7 +35,9 @@ def parse_args():
 
 #######################################################################################
 ## Configurations
-print('Warning: disable cudnn for batchnorm first, or just use only cuda instead!')
+#print('Warning: disable cudnn for batchnorm first, or just use only cuda instead!')
+torch.backends.cudnn.enabled = False
+print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 # When we need to resume training, enable randomness to avoid seeing the determinstic
 # (agumented) samples many times.
@@ -56,7 +58,7 @@ checkpoint_per_epochs = 1
 checkpoint_dir = r'./checkpoint'
 
 start_epoch = 0
-epochs_num = 15
+epochs_num = 0
 
 batch_size = 12
 
@@ -65,8 +67,8 @@ batch_size = 12
 ## Data, transform, dataset and loader
 # Data
 print('==> Preparing data ..')
-data_dir = r'/home/maiqi/yalong/dataset/cvpr15_MSRAHandGestureDB'
-center_dir = r'/home/maiqi/yalong/project/KeyPoint/Code/V2V-PoseNet-Rlease-Codes/V2V-PoseNet_RELEASE-hand/data-result/MSRA-result/center'
+data_dir = r'/gpfs/space/home/zaliznyi/data/cvpr15_MSRAHandGestureDB'
+center_dir = r'/gpfs/space/home/zaliznyi/projects/V2V-PoseNet-pytorch/datasets/msra_center'
 keypoints_num = 21
 test_subject_id = 3
 cubic_size = 200
@@ -108,10 +110,10 @@ print('==> Constructing model ..')
 net = V2VModel(input_channels=1, output_channels=keypoints_num)
 
 net = net.to(device, dtype)
-if device == torch.device('cuda'):
-    torch.backends.cudnn.enabled = True
-    cudnn.benchmark = True
-    print('cudnn.enabled: ', torch.backends.cudnn.enabled)
+#if device == torch.device('cuda'):
+#    torch.backends.cudnn.enabled = True
+#    cudnn.benchmark = True
+#    print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 criterion = nn.MSELoss()
 
