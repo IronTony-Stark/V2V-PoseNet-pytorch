@@ -7,6 +7,8 @@ import torch.backends.cudnn as cudnn
 import argparse
 import os
 import platform
+import wandb
+from tqdm import tqdm
 
 from lib.solver import train_epoch, val_epoch, test_epoch
 from lib.sampler import ChunkSampler
@@ -58,11 +60,20 @@ checkpoint_per_epochs = 1
 checkpoint_dir = r'./checkpoint'
 
 start_epoch = 0
-epochs_num = 0
+epochs_num = 3
 
 batch_size = 12
 
 loader_num_workers = 6 if platform.system() != 'Windows' else 0
+
+run = wandb.init(
+    project="Pose Estimation using OCT ICRA 2025",
+    config={
+        "epochs": epochs_num,
+        "batch_size": batch_size,
+    },
+    tags=["baseline", "V2V Pose Net cvpr15_MSRAHandGestureDB"]
+)
 
 #######################################################################################
 ## Data, transform, dataset and loader
@@ -99,6 +110,8 @@ def transform_val(sample):
 
 
 # Dataset and loader
+print(f'==> Preparing dataloaders with {loader_num_workers} workers ..')
+
 train_set = MARAHandDataset(data_dir, center_dir, 'train', test_subject_id, transform_train)
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=loader_num_workers)
 # train_num = 1
@@ -114,9 +127,9 @@ print('==> Constructing model ..')
 net = V2VModel(input_channels=1, output_channels=keypoints_num)
 
 net = net.to(device, dtype)
-# if device == torch.device('cuda'):
-#     torch.backends.cudnn.enabled = True
-#     cudnn.benchmark = True
+if device == torch.device('cuda'):
+    torch.backends.cudnn.enabled = False
+    # cudnn.benchmark = True
 print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 criterion = nn.MSELoss()
@@ -144,10 +157,9 @@ if resume_train:
 #######################################################################################
 ## Train and Validate
 print('==> Training ..')
-for epoch in range(start_epoch, start_epoch + epochs_num):
-    print('Epoch: {}'.format(epoch))
-    train_epoch(net, criterion, optimizer, train_loader, device=device, dtype=dtype)
-    val_epoch(net, criterion, val_loader, device=device, dtype=dtype)
+for epoch in tqdm(range(start_epoch, start_epoch + epochs_num), desc="Epochs"):
+    train_epoch(net, criterion, optimizer, train_loader, epoch, device=device, dtype=dtype, wandb_run=run)
+    val_epoch(net, criterion, val_loader, epoch, device=device, dtype=dtype, wandb_run=run)
 
     if save_checkpoint and epoch % checkpoint_per_epochs == 0:
         if not os.path.exists(checkpoint_dir): os.mkdir(checkpoint_dir)
@@ -216,7 +228,7 @@ test_set = MARAHandDataset(data_dir, center_dir, 'test', test_subject_id, transf
 test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
 test_res_collector = BatchResultCollector(len(test_set), transform_output)
 
-test_epoch(net, test_loader, test_res_collector, device, dtype)
+test_epoch(net, test_loader, test_res_collector, device, dtype, run)
 keypoints_test = test_res_collector.get_result()
 save_keypoints('./test_res.txt', keypoints_test)
 
