@@ -44,9 +44,9 @@ class AngleDataset(Dataset):
         rect1_size = np.array([self.rect_size, self.rect_size * 2, self.rect_size])
         rect1_loc = (self.size - rect1_size) // 2
         volume[
-        rect1_loc[0]:rect1_loc[0] + rect1_size[0],
-        rect1_loc[1]:rect1_loc[1] + rect1_size[1],
-        rect1_loc[2]:rect1_loc[2] + rect1_size[2]
+            rect1_loc[0]:rect1_loc[0] + rect1_size[0],
+            rect1_loc[1]:rect1_loc[1] + rect1_size[1],
+            rect1_loc[2]:rect1_loc[2] + rect1_size[2]
         ] = self.rect_intensity
 
         volume = rotate(volume, angle, axes=(0, 1), reshape=False, mode='nearest')  # z
@@ -57,9 +57,9 @@ class AngleDataset(Dataset):
         rect2_size = np.copy(rect1_size)
         rect2_size[1] += self.rect_size  # make the second rectangle longer
         volume[
-        rect2_loc[0]:rect2_loc[0] + rect2_size[0],
-        rect2_loc[1]:rect2_loc[1] + rect2_size[1],
-        rect2_loc[2]:rect2_loc[2] + rect2_size[2]
+            rect2_loc[0]:rect2_loc[0] + rect2_size[0],
+            rect2_loc[1]:rect2_loc[1] + rect2_size[1],
+            rect2_loc[2]:rect2_loc[2] + rect2_size[2]
         ] = self.rect_intensity
 
         # Randomly rotate the volume along every axis
@@ -100,6 +100,9 @@ class AngleDataset(Dataset):
         # for x, y, z in self._calculate_angle(keypoints):
         #     x, y, z = int(x), int(y), int(z)
         #     volume[x - 1:x + 2, y - 1:y + 2, z - 1:z + 2] = 255
+        # for x, y, z in [AngleDataset.calculate_parallelepipeds_translation(keypoints)]:
+        #     x, y, z = int(x), int(y), int(z)
+        #     volume[x - 1:x + 2, y - 1:y + 2, z - 1:z + 2] = 255
 
         # Calculate the angle between the 2 parallelepipeds to ensure it matches the defined
         calc_angle = AngleDataset.calculate_parallelepipeds_angle(keypoints)
@@ -107,7 +110,8 @@ class AngleDataset(Dataset):
             calc_angle = 180 - calc_angle
         assert abs(angle - calc_angle) < 1
 
-        return volume, keypoints, angle
+        return (volume, keypoints, AngleDataset.calculate_parallelepipeds_translation(keypoints),
+                AngleDataset.calculate_parallelepipeds_translation(keypoints), angle)
 
     @staticmethod
     def get_parallelepipeds_vertices(loc, size):
@@ -143,6 +147,28 @@ class AngleDataset(Dataset):
         bottom_vector = bottom_front - bottom_back
         top_vector = top_front - top_back
         return angle_between_vectors(bottom_vector, top_vector)
+
+    @staticmethod
+    def calculate_parallelepipeds_translation(keypoints):
+        """
+        Returns the coordinates of the base (bottom) parallelepiped's center
+        """
+        bottom_front = np.mean(keypoints[[11, 12, 15, 16]], axis=0)
+        bottom_back = np.mean(keypoints[[9, 10, 13, 14]], axis=0)
+        return (bottom_front + bottom_back) / 2
+
+    @staticmethod
+    def calculate_parallelepipeds_orientation(keypoints):
+        """
+        Returns the orientation of the base (bottom) parallelepiped by calculating the normalized vector
+        between the 'front' (near the top parallelepiped) and 'back' parts of the base
+        """
+        bottom_front = np.mean(keypoints[[11, 12, 15, 16]], axis=0)
+        bottom_back = np.mean(keypoints[[9, 10, 13, 14]], axis=0)
+
+        vector = bottom_front - bottom_back
+        vector = vector / np.linalg.norm(vector)
+        return vector
 
 
 def rotate_3d_points(points, angles_degrees, center):
@@ -220,8 +246,10 @@ if __name__ == '__main__':
     ds = AngleDataset(1)
 
     start = time.time()
-    volume, _, _ = ds[0]
+    volume, keypoints, _, _, angle = ds[0]
     print(f"Elapsed time: {time.time() - start} seconds")
+
+    print(len(keypoints))
 
     vol = sitk.GetImageFromArray(volume)
     sitk.Show(vol)
