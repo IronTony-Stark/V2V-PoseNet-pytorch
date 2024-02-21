@@ -24,3 +24,4 @@ def plot_mean_err(ax, mean_err, name):
     name: (K, )
     '''
     ax.bar(name, mean_err)
+    ax.set_xticklabels(name, rotation='vertical')

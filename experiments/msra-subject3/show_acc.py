@@ -7,8 +7,8 @@ from lib.accuracy import *
 from vis.plot import *
 
 
-gt_file = r'/gpfs/space/home/zaliznyi/projects/V2V-PoseNet-pytorch/test_s3_gt.txt'
-pred_file = r'/gpfs/space/home/zaliznyi/projects/V2V-PoseNet-pytorch/test_res.txt'
+gt_file = r'../../test_s3_gt.txt'
+pred_file = r'../../test_res.txt'
 
 
 gt = np.loadtxt(gt_file)
@@ -29,14 +29,14 @@ dist, acc = compute_dist_acc_wrapper(pred, gt, max_dist=100, num=100)
 
 fig, ax = plt.subplots()
 plot_acc(ax, dist, acc, names)
-fig.savefig('msra_s3_joint_acc.png')
+fig.savefig('msra_s3_joint_acc1.png')
 plt.show()
 
 
 mean_err = compute_mean_err(pred, gt)
 fig, ax = plt.subplots()
 plot_mean_err(ax, mean_err, names)
-fig.savefig('msra_s3_joint_acc.png')
+fig.savefig('msra_s3_joint_acc2.png')
 plt.show()
 
 
