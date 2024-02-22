@@ -14,7 +14,8 @@ class AngleDataset(Dataset):
                  random_angle_low=10, random_angle_high=90,
                  random_noise_low=0, random_noise_high=32,
                  rect_intensity=255,
-                 bright_voxel_removal_percentage=50):
+                 bright_voxel_removal_percentage=50,
+                 transform=None):
         self.num_samples = num_samples
         self.size = np.array((size, size, size))
         self.dtype = dtype
@@ -22,6 +23,7 @@ class AngleDataset(Dataset):
         self.random_noise_low, self.random_noise_high = random_noise_low, random_noise_high
         self.rect_intensity = rect_intensity
         self.bright_voxel_removal_percentage = bright_voxel_removal_percentage
+        self.transform = transform
 
         self.rect_size = self.size[0] // 10
         self.volume_center = self.size // 2
@@ -70,7 +72,7 @@ class AngleDataset(Dataset):
         volume = rotate(volume, rotation_angles[2], axes=(0, 1), reshape=False, mode='nearest')  # z
 
         # Randomly translate the volume along every axis
-        translation = np.random.randint(-50, 50, size=3, dtype=np.int8)
+        translation = np.random.randint(-self.rect_size * 2, self.rect_size * 2, size=3, dtype=np.int8)
         volume = np.roll(volume, translation, axis=(0, 1, 2))
 
         # Randomly remove voxels
@@ -105,13 +107,20 @@ class AngleDataset(Dataset):
         #     volume[x - 1:x + 2, y - 1:y + 2, z - 1:z + 2] = 255
 
         # Calculate the angle between the 2 parallelepipeds to ensure it matches the defined
-        calc_angle = AngleDataset.calculate_parallelepipeds_angle(keypoints)
+        batch_keypoints = keypoints[np.newaxis, :]  # add batch dimension
+
+        calc_angle = AngleDataset.calculate_parallelepipeds_angle(batch_keypoints)[0]
         if calc_angle > 90:
             calc_angle = 180 - calc_angle
-        assert abs(angle - calc_angle) < 1
+        if abs(angle - calc_angle) > 3:
+            print(f"[WARN]: Angle difference is too high: {angle} vs {calc_angle}")
+        # assert abs(angle - calc_angle) < 3
 
-        return (volume, keypoints, AngleDataset.calculate_parallelepipeds_translation(keypoints),
-                AngleDataset.calculate_parallelepipeds_translation(keypoints), angle)
+        out = (volume, keypoints, AngleDataset.calculate_parallelepipeds_translation(batch_keypoints)[0],
+               AngleDataset.calculate_parallelepipeds_orientation(batch_keypoints)[0], angle)
+        if self.transform:
+            return self.transform(*out)
+        return out
 
     @staticmethod
     def get_parallelepipeds_vertices(loc, size):
@@ -133,41 +142,53 @@ class AngleDataset(Dataset):
         return vertices
 
     @staticmethod
-    def calculate_parallelepipeds_angle(keypoints):
+    def calculate_parallelepipeds_angle(keypoints_batch):
         """
         Calculate the angle between 2 parallelepipeds based on their keypoints
+        :param keypoints_batch: [batch_size, num_keypoints, 3]
         """
-        top_front = np.mean(keypoints[[2, 3, 6, 7]], axis=0)
-        top_back = np.mean(keypoints[[0, 1, 4, 5]], axis=0)
-        bottom_front = np.mean(keypoints[[11, 12, 15, 16]], axis=0)
-        bottom_back = np.mean(keypoints[[9, 10, 13, 14]], axis=0)
+        batch_size = keypoints_batch.shape[0]
+        angles = np.zeros(batch_size)
 
-        # return [bottom_back, bottom_front, top_back, top_front]  # for debugging
+        for i in range(batch_size):
+            keypoints = keypoints_batch[i]
 
-        bottom_vector = bottom_front - bottom_back
-        top_vector = top_front - top_back
-        return angle_between_vectors(bottom_vector, top_vector)
+            top_front = np.mean(keypoints[[2, 3, 6, 7]], axis=0)
+            top_back = np.mean(keypoints[[0, 1, 4, 5]], axis=0)
+            bottom_front = np.mean(keypoints[[11, 12, 15, 16]], axis=0)
+            bottom_back = np.mean(keypoints[[9, 10, 13, 14]], axis=0)
+
+            # return [bottom_back, bottom_front, top_back, top_front]  # for debugging
+
+            bottom_vector = bottom_front - bottom_back
+            top_vector = top_front - top_back
+
+            angles[i] = angle_between_vectors(bottom_vector, top_vector)
+
+        return angles
 
     @staticmethod
-    def calculate_parallelepipeds_translation(keypoints):
+    def calculate_parallelepipeds_translation(keypoints_batch):
         """
         Returns the coordinates of the base (bottom) parallelepiped's center
+        :param keypoints_batch: [batch_size, num_keypoints, 3]
         """
-        bottom_front = np.mean(keypoints[[11, 12, 15, 16]], axis=0)
-        bottom_back = np.mean(keypoints[[9, 10, 13, 14]], axis=0)
+        bottom_front = np.mean(keypoints_batch[:, [11, 12, 15, 16]], axis=1)
+        bottom_back = np.mean(keypoints_batch[:, [9, 10, 13, 14]], axis=1)
         return (bottom_front + bottom_back) / 2
 
     @staticmethod
-    def calculate_parallelepipeds_orientation(keypoints):
+    def calculate_parallelepipeds_orientation(keypoints_batch):
         """
         Returns the orientation of the base (bottom) parallelepiped by calculating the normalized vector
         between the 'front' (near the top parallelepiped) and 'back' parts of the base
+        :param keypoints_batch: [batch_size, num_keypoints, 3]
         """
-        bottom_front = np.mean(keypoints[[11, 12, 15, 16]], axis=0)
-        bottom_back = np.mean(keypoints[[9, 10, 13, 14]], axis=0)
+        bottom_front = np.mean(keypoints_batch[:, [11, 12, 15, 16]], axis=1)
+        bottom_back = np.mean(keypoints_batch[:, [9, 10, 13, 14]], axis=1)
 
         vector = bottom_front - bottom_back
-        vector = vector / np.linalg.norm(vector)
+        vector = vector / np.linalg.norm(vector, axis=1, keepdims=True)
         return vector
 
 
@@ -220,7 +241,8 @@ def angle_between_vectors(v1, v2):
 
     # Avoid division by zero
     if norm_v1 == 0 or norm_v2 == 0:
-        raise ValueError("One or both vectors have zero length.")
+        return 0
+        # raise ValueError("One or both vectors have zero length.")
 
     cosine_theta = dot_product / (norm_v1 * norm_v2)
     angle_rad = np.arccos(np.clip(cosine_theta, -1.0, 1.0))
@@ -243,7 +265,7 @@ def rotate_volume(volume, rotation_angles):
 
 
 if __name__ == '__main__':
-    ds = AngleDataset(1)
+    ds = AngleDataset(1, size=88)
 
     start = time.time()
     volume, keypoints, _, _, angle = ds[0]

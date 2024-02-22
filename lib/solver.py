@@ -5,11 +5,11 @@ from tqdm import tqdm
 
 
 def train_epoch(model, criterion, optimizer, train_loader, epoch,
-                device=torch.device('cuda'), dtype=torch.float, wandb_run=None):
+                device=torch.device('cuda'), dtype=torch.float, metrics_calc=None, wandb_run=None):
     model.train()
     train_loss = 0
 
-    for batch_idx, (inputs, targets) in tqdm(
+    for batch_idx, (inputs, targets, extras) in tqdm(
             enumerate(train_loader), total=len(train_loader), desc="Batches", leave=False):
         inputs, targets = inputs.to(device, dtype), targets.to(device, dtype)
         optimizer.zero_grad()
@@ -19,30 +19,38 @@ def train_epoch(model, criterion, optimizer, train_loader, epoch,
         optimizer.step()
 
         train_loss += loss.item()
+        metrics = {}
+        if metrics_calc:
+            metrics = metrics_calc(outputs, targets, extras)
 
         if wandb_run:
             wandb_run.log({"train": {
                 "loss": train_loss / (batch_idx + 1),
+                **metrics,
             }})
 
 
 def val_epoch(model, criterion, val_loader, epoch,
-              device=torch.device('cuda'), dtype=torch.float, wandb_run=None):
+              device=torch.device('cuda'), dtype=torch.float, metrics_calc=None, wandb_run=None):
     model.eval()
     val_loss = 0
 
     with torch.no_grad():
-        for batch_idx, (inputs, targets) in tqdm(
+        for batch_idx, (inputs, targets, extras) in tqdm(
                 enumerate(val_loader), total=len(val_loader), desc="Batches", leave=False):
             inputs, targets = inputs.to(device, dtype), targets.to(device, dtype)
             outputs = model(inputs)
             loss = criterion(outputs, targets)
 
             val_loss += loss.item()
+            metrics = {}
+            if metrics_calc:
+                metrics = metrics_calc(outputs, targets, extras)
 
             if wandb_run:
                 wandb_run.log({"val": {
                     "loss": val_loss / (batch_idx + 1),
+                    **metrics,
                 }})
 
 

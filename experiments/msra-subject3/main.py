@@ -99,14 +99,14 @@ def transform_train(sample):
     points, keypoints, refpoint = sample['points'], sample['joints'], sample['refpoint']
     assert (keypoints.shape[0] == keypoints_num)
     input, heatmap = voxelization_train({'points': points, 'keypoints': keypoints, 'refpoint': refpoint})
-    return (torch.from_numpy(input), torch.from_numpy(heatmap))
+    return (torch.from_numpy(input), torch.from_numpy(heatmap), None)
 
 
 def transform_val(sample):
     points, keypoints, refpoint = sample['points'], sample['joints'], sample['refpoint']
     assert (keypoints.shape[0] == keypoints_num)
     input, heatmap = voxelization_val({'points': points, 'keypoints': keypoints, 'refpoint': refpoint})
-    return (torch.from_numpy(input), torch.from_numpy(heatmap))
+    return (torch.from_numpy(input), torch.from_numpy(heatmap), None)
 
 
 # Dataset and loader

@@ -104,7 +104,7 @@ class EncoderDecorder(nn.Module):
 
 
 class V2VModel(nn.Module):
-    def __init__(self, input_channels, output_channels):
+    def __init__(self, input_channels, output_channels, keypoints=True):
         super(V2VModel, self).__init__()
 
         self.front_layers = nn.Sequential(
@@ -117,13 +117,27 @@ class V2VModel(nn.Module):
 
         self.encoder_decoder = EncoderDecorder()
 
-        self.back_layers = nn.Sequential(
-            Res3DBlock(32, 32),
-            Basic3DBlock(32, 32, 1),
-            Basic3DBlock(32, 32, 1),
-        )
+        if keypoints:
+            self.back_layers = nn.Sequential(
+                Res3DBlock(32, 32),
+                Basic3DBlock(32, 32, 1),
+                Basic3DBlock(32, 32, 1),
+            )
 
-        self.output_layer = nn.Conv3d(32, output_channels, kernel_size=1, stride=1, padding=0)
+            self.output_layer = nn.Conv3d(32, output_channels, kernel_size=1, stride=1, padding=0)
+        else:
+            self.back_layers = nn.Sequential(
+                Res3DBlock(32, 32),
+                Pool3DBlock(2),
+                Basic3DBlock(32, 32, 1),
+                Pool3DBlock(2),
+                Basic3DBlock(32, 32, 1),
+                Pool3DBlock(2),
+                nn.Flatten(),
+            )
+
+            # TODO apply normalization to ensure values are in the correct range
+            self.output_layer = nn.Linear(4000, output_channels)
 
         self._initialize_weights()
 
@@ -140,5 +154,8 @@ class V2VModel(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.001)
                 nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.ConvTranspose3d):
+                nn.init.normal_(m.weight, 0, 0.001)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
                 nn.init.normal_(m.weight, 0, 0.001)
                 nn.init.constant_(m.bias, 0)

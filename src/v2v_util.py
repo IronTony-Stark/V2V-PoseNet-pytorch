@@ -3,7 +3,10 @@ import numpy as np
 
 
 def discretize(coord, cropped_size):
-    '''[-1, 1] -> [0, cropped_size]'''
+    '''
+    Converts normalized coordinates [-1, 1] to discrete coordinates [0, cropped_size]
+    Essentially converts point coordinates in 3d space to voxel coordinates
+    '''
     min_normalized = -1
     max_normalized = 1
     scale = (max_normalized - min_normalized) / cropped_size
@@ -12,7 +15,9 @@ def discretize(coord, cropped_size):
 
 def warp2continuous(coord, refpoint, cubic_size, cropped_size):
     '''
-    Map coordinates in set [0, 1, .., cropped_size-1] to original range [-cubic_size/2+refpoint, cubic_size/2 + refpoint]
+    Reverse discretize and map back to the original range.
+    Map discrete coordinates in set [0, 1, .., cropped_size-1] to original range
+    [-cubic_size/2+refpoint, cubic_size/2 + refpoint]
     '''
     min_normalized = -1
     max_normalized = 1
@@ -48,6 +53,8 @@ def scattering(coord, cropped_size):
 
 def extract_coord_from_output(output, center=True):
     '''
+    Extracts discrete coordinates from the output of the network by taking the maximum
+    value in each channel (keypoint) of the heatmap.
     output: shape (batch, jointNum, volumeSize, volumeSize, volumeSize)
     center: if True, add 0.5, default is true
     return: shape (batch, jointNum, 3)
@@ -81,6 +88,8 @@ def generate_coord(points, refpoint, new_size, angle, trans, sizes):
 
     # discretize
     coord = discretize(coord, cropped_size)  # -> [0, cropped_size]
+
+    # apply augmentations
     coord += (original_size / 2 - cropped_size / 2)  # move center to original volume 
 
     # resize around original volume center
@@ -190,8 +199,12 @@ class V2VVoxelization(object):
         heatmap = generate_heatmap_gt(keypoints, refpoint, new_size, angle, trans, self.sizes, self.d3outputs, self.pool_factor, self.std)
         return heatmap
 
-    def evaluate(self, heatmaps, refpoints):
+    def get_voxel_coordinates(self, heatmaps):
         coords = extract_coord_from_output(heatmaps)
         coords *= self.pool_factor
+        return coords
+
+    def evaluate(self, heatmaps, refpoints):
+        coords = self.get_voxel_coordinates(heatmaps)
         keypoints = warp2continuous(coords, refpoints, self.cubic_size, self.cropped_size)
         return keypoints
