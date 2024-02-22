@@ -26,29 +26,34 @@ def parse_args():
     return args
 
 
-# class CombinedToyDataLoss(nn.MSELoss):
-#     def __init__(self, voxelization: V2VVoxelization, *args, **kwargs):
+# class CombinedToyDataLoss(nn.Module):
+#     def __init__(self, pool_factor=2, *args, **kwargs):
 #         super().__init__(*args, **kwargs)
-#         self.voxelization = voxelization
+#         self.mse = nn.MSELoss()
+#         self.l1 = nn.L1Loss()
+#         self.cosine = nn.CosineSimilarity()
+#
+#         self.pool_factor = pool_factor
 #
 #     # TODO: a lot of this has to be modified to support gradient flow.
 #     #  For one, voxel coordinates calculation should be done using differentiable_argmax
 #     def forward(self, outputs, targets):
-#         keypoints = self.voxelization.get_voxel_coordinates(outputs)
+#         keypoints = extract_coord_from_output(outputs)
+#         keypoints *= self.pool_factor
 #
 #         target_heatmap, target_translation, target_orientation, target_angle = \
 #             targets['heatmap'], targets['translation'], targets['orientation'], targets['angle']
 #
-#         angle = AngleDataset.calculate_parallelepipeds_angle(keypoints)
 #         translation = AngleDataset.calculate_parallelepipeds_translation(keypoints)
 #         orientation = AngleDataset.calculate_parallelepipeds_orientation(keypoints)
+#         angle = AngleDataset.calculate_parallelepipeds_angle(keypoints)
 #
-#         keypoint_loss = super().forward(outputs, target_heatmap)
-#         angle_loss = super().forward(angle, target_angle)
-#         translation_loss = super().forward(translation, target_translation)
-#         orientation_loss = super().forward(orientation, target_orientation)
+#         keypoint_loss = self.mse(outputs, target_heatmap)
+#         translation_loss = self.l1(translation, target_translation)
+#         orientation_loss = self.cosine(orientation, target_orientation)
+#         angle_loss = self.mse(angle, target_angle)
 #
-#         return keypoint_loss + angle_loss + translation_loss + orientation_loss
+#         return keypoint_loss + translation_loss + orientation_loss + angle_loss
 
 
 def generate_heatmap(keypoint_coordinates, pool_factor, output_size, std):
@@ -220,6 +225,8 @@ class MetricsCalcKeypoints:
         translation = AngleDataset.calculate_parallelepipeds_translation(keypoints)
         orientation = AngleDataset.calculate_parallelepipeds_orientation(keypoints)
         angle = AngleDataset.calculate_parallelepipeds_angle(keypoints)
+        if angle > 90:
+            angle = 180 - angle
 
         # Calculate avg distance error between translation (position) and target_translation (target position)
         translation_avg_dist_error = np.mean(np.linalg.norm(translation - target_translation, axis=1))
