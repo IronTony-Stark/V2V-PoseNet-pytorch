@@ -103,6 +103,9 @@ batch_size = 12
 
 loader_num_workers = 6 if platform.system() != 'Windows' else 0
 
+keypoints = False
+output_channels = 18 if keypoints else 7
+
 run = wandb.init(
     project="Pose Estimation using OCT ICRA 2025",
     config={
@@ -119,14 +122,12 @@ run = wandb.init(
 # Data
 print('==> Preparing data ..')
 
-keypoints_num = 18
-
 if not os.path.exists(checkpoint_dir):
     os.mkdir(checkpoint_dir)
 
 
 # Transform
-def transform_train(volume, keypoints, translation, orientation, angle):
+def transform_keypoints(volume, keypoints, translation, orientation, angle):
     volume = volume / 255.0
     volume = volume[np.newaxis, :]
 
@@ -141,17 +142,35 @@ def transform_train(volume, keypoints, translation, orientation, angle):
     return torch.from_numpy(volume), torch.from_numpy(target), extra
 
 
+def transform_regression(volume, keypoints, translation, orientation, angle):
+    volume = volume / 255.0
+    volume = volume[np.newaxis, :]
+
+    target = np.zeros(7, dtype=np.float64)
+    target[:3] = translation
+    target[3:6] = orientation
+    target[6] = angle
+
+    extra = {
+        'translation': translation,
+        'orientation': orientation,
+        'angle': angle
+    }
+
+    return torch.from_numpy(volume), torch.from_numpy(target), extra
+
+
 # Dataset and loader
 print(f'==> Preparing dataloaders with {loader_num_workers} workers ..')
 
-train_set = AngleDataset(num_samples=400, size=88, transform=transform_train)
+train_set = AngleDataset(num_samples=400, size=88, transform=transform_keypoints if keypoints else transform_regression)
 train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
 
 #######################################################################################
 # Model, criterion and optimizer
 print('==> Constructing model ..')
 
-net = V2VModel(input_channels=1, output_channels=keypoints_num)
+net = V2VModel(input_channels=1, output_channels=output_channels, keypoints=keypoints, volume_size=88.0)
 
 net = net.to(device, dtype)
 if device == torch.device('cuda'):
@@ -184,7 +203,7 @@ if resume_train:
 print('==> Training ..')
 
 
-class MetricsCalc:
+class MetricsCalcKeypoints:
     def __init__(self):
         pass
 
@@ -214,7 +233,34 @@ class MetricsCalc:
         }
 
 
-metrics_calc = MetricsCalc()
+class MetricsCalcRegression:
+    def __init__(self):
+        pass
+
+    def __call__(self, outputs, targets, extras):
+        target_translation, target_orientation, target_angle = \
+            extras['translation'], extras['orientation'], extras['angle']
+        target_translation, target_orientation, target_angle = target_translation.detach().cpu().numpy(), \
+            target_orientation.detach().cpu().numpy(), target_angle.detach().cpu().numpy()
+
+        outputs = outputs.detach().cpu().numpy()
+        translation = outputs[:, :3]
+        orientation = outputs[:, 3:6]
+        angle = outputs[:, 6]
+
+        # Calculate avg distance error between translation (position) and target_translation (target position)
+        translation_avg_dist_error = np.mean(np.linalg.norm(translation - target_translation, axis=1))
+        orientation_avg_error = np.mean(np.linalg.norm(orientation - target_orientation, axis=1))
+        angle_avg_error = np.mean(np.abs(angle - target_angle))
+
+        return {
+            "translation_avg_dist_error": translation_avg_dist_error,
+            "orientation_avg_error": orientation_avg_error,
+            "angle_avg_error": angle_avg_error,
+        }
+
+
+metrics_calc = MetricsCalcKeypoints() if keypoints else MetricsCalcRegression()
 for epoch in tqdm(range(start_epoch, start_epoch + epochs_num), desc="Epochs"):
     train_epoch(net, criterion, optimizer, train_loader, epoch, device=device, dtype=dtype,
                 wandb_run=run, metrics_calc=metrics_calc)

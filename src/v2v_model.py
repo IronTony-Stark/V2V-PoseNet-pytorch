@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -104,8 +105,10 @@ class EncoderDecorder(nn.Module):
 
 
 class V2VModel(nn.Module):
-    def __init__(self, input_channels, output_channels, keypoints=True):
+    def __init__(self, input_channels, output_channels, keypoints=True, volume_size=88.0):
         super(V2VModel, self).__init__()
+        self.keypoints = keypoints
+        self.volume_size = volume_size
 
         self.front_layers = nn.Sequential(
             Basic3DBlock(input_channels, 16, 7),
@@ -117,7 +120,7 @@ class V2VModel(nn.Module):
 
         self.encoder_decoder = EncoderDecorder()
 
-        if keypoints:
+        if self.keypoints:
             self.back_layers = nn.Sequential(
                 Res3DBlock(32, 32),
                 Basic3DBlock(32, 32, 1),
@@ -136,7 +139,6 @@ class V2VModel(nn.Module):
                 nn.Flatten(),
             )
 
-            # TODO apply normalization to ensure values are in the correct range
             self.output_layer = nn.Linear(4000, output_channels)
 
         self._initialize_weights()
@@ -146,6 +148,11 @@ class V2VModel(nn.Module):
         x = self.encoder_decoder(x)
         x = self.back_layers(x)
         x = self.output_layer(x)
+        if not self.keypoints:
+            position = F.sigmoid(x[:, :3]) * self.volume_size  # position must be within the volume
+            orientation = F.normalize(x[:, 3:6], p=2, dim=-1)  # orientation is a normalized vector
+            angle = F.sigmoid(x[:, 6]) * 90.0  # angle must be within range [0, 90]
+            x = torch.cat([position, orientation, angle.unsqueeze(1)], dim=1)
         return x
 
     def _initialize_weights(self):
