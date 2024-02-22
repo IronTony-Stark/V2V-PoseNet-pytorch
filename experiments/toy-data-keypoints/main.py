@@ -110,7 +110,7 @@ run = wandb.init(
         "batch_size": batch_size,
     },
     tags=["toy-dataset", "V2V Pose Net cvpr15_MSRAHandGestureDB"],
-    mode="disabled",
+    # mode="disabled",
 )
 
 #######################################################################################
