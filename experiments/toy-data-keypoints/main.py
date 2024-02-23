@@ -1,6 +1,7 @@
 import argparse
 import os
 import platform
+from dataclasses import dataclass, asdict
 
 import numpy as np
 import torch
@@ -89,37 +90,39 @@ def generate_heatmap(keypoint_coordinates, pool_factor, output_size, std):
 
 #######################################################################################
 # Configurations
-keypoints = True
+@dataclass
+class Config:
+    keypoints = True
 
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-dtype = torch.float
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    dtype = torch.float
 
-args = parse_args()
-resume_train = args.resume >= 0
-resume_after_epoch = args.resume
+    args = parse_args()
+    resume_train = args.resume >= 0
+    resume_after_epoch = args.resume
 
-save_checkpoint = True
-checkpoint_per_epochs = 5
-checkpoint_dir = r'./checkpoint/keypoints' if keypoints else r'./checkpoint/regression'
+    save_checkpoint = True
+    checkpoint_per_epochs = 5
+    checkpoint_dir = r'./checkpoint/keypoints' if keypoints else r'./checkpoint/regression'
 
-start_epoch = 0
-epochs_num = 100
+    start_epoch = resume_after_epoch if resume_train else 0
+    epochs_num = 100
 
-batch_size = 12
+    batch_size = 12
 
-loader_num_workers = 6 if platform.system() != 'Windows' else 0
+    loader_num_workers = 6 if platform.system() != 'Windows' else 0
 
-output_channels = 18 if keypoints else 7
+    output_channels = 18 if keypoints else 7
+
+
+config = Config()
 
 run = wandb.init(
     project="Pose Estimation using OCT ICRA 2025",
-    config={
-        "epochs": epochs_num,
-        "batch_size": batch_size,
-        "keypoints": keypoints,
-    },
+    name=f"{'Keypoints' if config.keypoints else 'Regression'}",
+    config=asdict(config),
     tags=["toy-dataset", "V2V Pose Net cvpr15_MSRAHandGestureDB"],
-    # mode="disabled",
+    mode="disabled",
 )
 
 #######################################################################################
@@ -128,8 +131,8 @@ run = wandb.init(
 # Data
 print('==> Preparing data ..')
 
-if not os.path.exists(checkpoint_dir):
-    os.mkdir(checkpoint_dir)
+if not os.path.exists(config.checkpoint_dir):
+    os.makedirs(config.checkpoint_dir)
 
 
 # Transform
@@ -167,42 +170,44 @@ def transform_regression(volume, keypoints, translation, orientation, angle):
 
 
 # Dataset and loader
-print(f'==> Preparing dataloaders with {loader_num_workers} workers ..')
+print(f'==> Preparing dataloaders with {config.loader_num_workers} workers ..')
 
-train_set = AngleDataset(num_samples=400, size=88, transform=transform_keypoints if keypoints else transform_regression)
-train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
+train_set = AngleDataset(num_samples=400, size=88,
+                         transform=transform_keypoints if config.keypoints else transform_regression)
+train_loader = DataLoader(train_set, batch_size=config.batch_size,
+                          shuffle=False, num_workers=config.loader_num_workers)
 
 #######################################################################################
 # Model, criterion and optimizer
 print('==> Constructing model ..')
 
-net = V2VModel(input_channels=1, output_channels=output_channels, keypoints=keypoints, volume_size=88.0)
+net = V2VModel(input_channels=1, output_channels=config.output_channels, keypoints=config.keypoints, volume_size=88.0)
 
-net = net.to(device, dtype)
-if device == torch.device('cuda'):
+net = net.to(config.device, config.dtype)
+if config.device == torch.device('cuda'):
     torch.backends.cudnn.enabled = False
     # cudnn.benchmark = True
 print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 criterion = nn.MSELoss()
 
-optimizer = optim.Adam(net.parameters())
+optimizer = optim.Adam(net.parameters())  # TODO LR decay
 
 #######################################################################################
 # Resume
-if resume_train:
+if config.resume_train:
     # Load checkpoint
-    epoch = resume_after_epoch
-    checkpoint_file = os.path.join(checkpoint_dir, 'epoch' + str(epoch) + '.pth')
+    epoch = config.resume_after_epoch
+    checkpoint_file = os.path.join(config.checkpoint_dir, f'epoch{epoch}.pth')
 
     print('==> Resuming from checkpoint after epoch {} ..'.format(epoch))
-    assert os.path.isdir(checkpoint_dir), 'Error: no checkpoint directory found!'
+    assert os.path.isdir(config.checkpoint_dir), 'Error: no checkpoint directory found!'
     assert os.path.isfile(checkpoint_file), 'Error: no checkpoint file of epoch {}'.format(epoch)
 
-    checkpoint = torch.load(os.path.join(checkpoint_dir, 'epoch' + str(epoch) + '.pth'))
+    checkpoint = torch.load(os.path.join(config.checkpoint_dir, f'epoch{epoch}.pth'))
     net.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    start_epoch = checkpoint['epoch'] + 1
+    config.start_epoch = checkpoint['epoch'] + 1
 
 #######################################################################################
 # Train and Validate
@@ -267,13 +272,13 @@ class MetricsCalcRegression:
         }
 
 
-metrics_calc = MetricsCalcKeypoints() if keypoints else MetricsCalcRegression()
-for epoch in tqdm(range(start_epoch, start_epoch + epochs_num), desc="Epochs"):
-    train_epoch(net, criterion, optimizer, train_loader, epoch, device=device, dtype=dtype,
+metrics_calc = MetricsCalcKeypoints() if config.keypoints else MetricsCalcRegression()
+for epoch in tqdm(range(config.start_epoch, config.start_epoch + config.epochs_num), desc="Epochs"):
+    train_epoch(net, criterion, optimizer, train_loader, epoch, device=config.device, dtype=config.dtype,
                 wandb_run=run, metrics_calc=metrics_calc)
 
-    if save_checkpoint and epoch % checkpoint_per_epochs == 0:
-        checkpoint_file = os.path.join(checkpoint_dir, f'epoch{epoch}.pth')
+    if config.save_checkpoint and epoch % config.checkpoint_per_epochs == 0:
+        checkpoint_file = os.path.join(config.checkpoint_dir, f'epoch{epoch}.pth')
         checkpoint = {
             'model_state_dict': net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
