@@ -1,6 +1,5 @@
 import time
 
-import SimpleITK as sitk
 import numpy as np
 from scipy.ndimage import rotate
 from scipy.spatial.transform import Rotation
@@ -250,18 +249,6 @@ def angle_between_vectors(v1, v2):
     angle_deg = np.degrees(angle_rad)
 
     return angle_deg
-
-
-def rotate_volume(volume, rotation_angles):
-    """
-    Rotate a 3D volume along each axis
-    """
-    image = sitk.GetImageFromArray(volume)
-    transform = sitk.Euler3DTransform()
-    transform.SetRotation(rotation_angles[0], rotation_angles[1], rotation_angles[2])
-    rotated_image = sitk.Resample(image, image.GetSize(), transform)
-    rotated_volume = sitk.GetArrayFromImage(rotated_image)
-    return rotated_volume
 
 
 if __name__ == '__main__':

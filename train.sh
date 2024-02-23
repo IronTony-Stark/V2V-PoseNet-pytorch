@@ -5,7 +5,8 @@
 #SBATCH --partition=gpu
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=6
-#SBATCH --gres=gpu:a100-40g
+#SBATCH --gres=gpu:tesla
+###SBATCH --gres=gpu:a100-40g
 #SBATCH --time=4000
 ###SBATCH --output=output_${current_datetime}.log
 ###SBATCH --error=error_${current_datetime}.log
@@ -24,7 +25,8 @@ gcc --version
 
 export PYTHONPATH=/gpfs/space/home/zaliznyi/projects/V2V-PoseNet-pytorch
 
-$CONDA_ENV_PATH/bin/python ./experiments/msra-subject3/main.py
+#$CONDA_ENV_PATH/bin/python ./experiments/msra-subject3/main.py
 #$CONDA_ENV_PATH/bin/python ./experiments/msra-subject3/gen_gt.py
 #$CONDA_ENV_PATH/bin/python ./experiments/msra-subject3/show_acc.py
 
+$CONDA_ENV_PATH/bin/python ./experiments/toy-data-keypoints/main.py

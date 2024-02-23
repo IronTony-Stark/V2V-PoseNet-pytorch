@@ -89,6 +89,7 @@ def generate_heatmap(keypoint_coordinates, pool_factor, output_size, std):
 
 #######################################################################################
 # Configurations
+keypoints = True
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 dtype = torch.float
@@ -98,17 +99,16 @@ resume_train = args.resume >= 0
 resume_after_epoch = args.resume
 
 save_checkpoint = True
-checkpoint_per_epochs = 1
-checkpoint_dir = r'./checkpoint'
+checkpoint_per_epochs = 5
+checkpoint_dir = r'./checkpoint/keypoints' if keypoints else r'./checkpoint/regression'
 
 start_epoch = 0
-epochs_num = 5
+epochs_num = 100
 
 batch_size = 12
 
 loader_num_workers = 6 if platform.system() != 'Windows' else 0
 
-keypoints = False
 output_channels = 18 if keypoints else 7
 
 run = wandb.init(
@@ -116,6 +116,7 @@ run = wandb.init(
     config={
         "epochs": epochs_num,
         "batch_size": batch_size,
+        "keypoints": keypoints,
     },
     tags=["toy-dataset", "V2V Pose Net cvpr15_MSRAHandGestureDB"],
     # mode="disabled",
@@ -225,8 +226,7 @@ class MetricsCalcKeypoints:
         translation = AngleDataset.calculate_parallelepipeds_translation(keypoints)
         orientation = AngleDataset.calculate_parallelepipeds_orientation(keypoints)
         angle = AngleDataset.calculate_parallelepipeds_angle(keypoints)
-        if angle > 90:
-            angle = 180 - angle
+        angle[angle > 90] = 180 - angle[angle > 90]
 
         # Calculate avg distance error between translation (position) and target_translation (target position)
         translation_avg_dist_error = np.mean(np.linalg.norm(translation - target_translation, axis=1))
@@ -273,7 +273,7 @@ for epoch in tqdm(range(start_epoch, start_epoch + epochs_num), desc="Epochs"):
                 wandb_run=run, metrics_calc=metrics_calc)
 
     if save_checkpoint and epoch % checkpoint_per_epochs == 0:
-        checkpoint_file = os.path.join(checkpoint_dir, f'epoch{epoch}' + str(epoch) + '.pth')
+        checkpoint_file = os.path.join(checkpoint_dir, f'epoch{epoch}.pth')
         checkpoint = {
             'model_state_dict': net.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),

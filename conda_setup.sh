@@ -2,3 +2,4 @@ conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvi
 conda install matplotlib
 conda install -c conda-forge wandb
 conda install -c conda-forge tqdm
+conda install scipy
