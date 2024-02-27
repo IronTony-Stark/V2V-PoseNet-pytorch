@@ -72,7 +72,8 @@ run = wandb.init(
         "epochs": epochs_num,
         "batch_size": batch_size,
     },
-    tags=["baseline", "V2V Pose Net cvpr15_MSRAHandGestureDB"]
+    tags=["baseline", "V2V Pose Net cvpr15_MSRAHandGestureDB"],
+    # mode="disabled",
 )
 
 #######################################################################################

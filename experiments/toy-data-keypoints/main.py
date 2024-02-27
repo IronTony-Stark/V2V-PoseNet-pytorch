@@ -18,6 +18,7 @@ from src.v2v_model import V2VModel
 from src.v2v_util import V2VVoxelization, extract_coord_from_output
 
 
+# TODO add weights monitoring to mitigate exploding/vanishing gradients
 #######################################################################################
 # Some helpers
 def parse_args():
