@@ -99,14 +99,14 @@ def transform_train(sample):
     points, keypoints, refpoint = sample['points'], sample['joints'], sample['refpoint']
     assert (keypoints.shape[0] == keypoints_num)
     input, heatmap = voxelization_train({'points': points, 'keypoints': keypoints, 'refpoint': refpoint})
-    return (torch.from_numpy(input), torch.from_numpy(heatmap), None)
+    return torch.from_numpy(input), torch.from_numpy(heatmap), torch.empty(())
 
 
 def transform_val(sample):
     points, keypoints, refpoint = sample['points'], sample['joints'], sample['refpoint']
     assert (keypoints.shape[0] == keypoints_num)
     input, heatmap = voxelization_val({'points': points, 'keypoints': keypoints, 'refpoint': refpoint})
-    return (torch.from_numpy(input), torch.from_numpy(heatmap), None)
+    return torch.from_numpy(input), torch.from_numpy(heatmap), torch.empty(())
 
 
 # Dataset and loader
@@ -128,8 +128,8 @@ net = V2VModel(input_channels=1, output_channels=keypoints_num)
 
 net = net.to(device, dtype)
 if device == torch.device('cuda'):
-    torch.backends.cudnn.enabled = False
-    # cudnn.benchmark = True
+    torch.backends.cudnn.enabled = True
+    cudnn.benchmark = True
 print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 criterion = nn.MSELoss()

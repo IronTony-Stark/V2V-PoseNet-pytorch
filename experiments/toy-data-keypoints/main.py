@@ -4,6 +4,7 @@ import platform
 
 import numpy as np
 import torch
+import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
 import wandb
@@ -113,6 +114,7 @@ output_channels = 18 if keypoints else 7
 
 run = wandb.init(
     project="Pose Estimation using OCT ICRA 2025",
+    name=f"{'Keypoints' if keypoints else 'Regression'}",
     config={
         "epochs": epochs_num,
         "batch_size": batch_size,
@@ -180,8 +182,8 @@ net = V2VModel(input_channels=1, output_channels=output_channels, keypoints=keyp
 
 net = net.to(device, dtype)
 if device == torch.device('cuda'):
-    torch.backends.cudnn.enabled = False
-    # cudnn.benchmark = True
+    torch.backends.cudnn.enabled = True
+    cudnn.benchmark = True
 print('cudnn.enabled: ', torch.backends.cudnn.enabled)
 
 criterion = nn.MSELoss()

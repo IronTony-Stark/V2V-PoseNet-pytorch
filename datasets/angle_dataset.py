@@ -11,9 +11,9 @@ from torch.utils.data import Dataset
 class AngleDataset(Dataset):
     def __init__(self, num_samples, size=256, dtype=np.uint8,
                  random_angle_low=10, random_angle_high=90,
-                 random_noise_low=0, random_noise_high=32,
+                 random_noise_low=0, random_noise_high=80,
                  rect_intensity=255,
-                 bright_voxel_removal_percentage=50,
+                 bright_voxel_removal_percentage=30,
                  transform=None):
         self.num_samples = num_samples
         self.size = np.array((size, size, size))
@@ -74,12 +74,12 @@ class AngleDataset(Dataset):
         translation = np.random.randint(-self.rect_size * 2, self.rect_size * 2, size=3, dtype=np.int8)
         volume = np.roll(volume, translation, axis=(0, 1, 2))
 
-        # # Randomly remove voxels
-        # volume = remove_voxels(volume, 0, self.bright_voxel_removal_percentage)
+        # Randomly remove voxels
+        volume = remove_voxels(volume, 0, self.bright_voxel_removal_percentage)
 
-        # # Add random noise
-        # noise = np.random.normal(self.random_noise_low, self.random_noise_high, self.size)
-        # volume = np.clip(volume + noise, 0, 255).astype(self.dtype)
+        # Add random noise
+        noise = np.random.normal(self.random_noise_low, self.random_noise_high, self.size)
+        volume = np.clip(volume + noise, 0, 255).astype(self.dtype)
 
         # Extract vertices and centers of the parallelepipeds to create keypoints
         rect1_vertices = AngleDataset.get_parallelepipeds_vertices(rect1_loc, rect1_size)
@@ -252,7 +252,7 @@ def angle_between_vectors(v1, v2):
 
 
 if __name__ == '__main__':
-    ds = AngleDataset(1, size=88)
+    ds = AngleDataset(1)
 
     start = time.time()
     volume, keypoints, _, _, angle = ds[0]
@@ -260,5 +260,6 @@ if __name__ == '__main__':
 
     print(len(keypoints))
 
-    vol = sitk.GetImageFromArray(volume)
-    sitk.Show(vol)
+    # import SimpleITK as sitk
+    # vol = sitk.GetImageFromArray(volume)
+    # sitk.Show(vol)
