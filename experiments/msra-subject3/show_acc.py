@@ -15,7 +15,7 @@ center_dir = "C:/Projects/V2V-PoseNet-pytorch/datasets/msra_center"
 test_subject_id = 3
 
 test_dataset = MARAHandDataset(root=data_dir, center_dir=center_dir, mode='test', test_subject_id=test_subject_id)
-_, gt, _ = test_dataset.get_data()
+gt = test_dataset.get_gt_joints()
 
 pred_file = r'../../test_res.txt'
 pred = np.loadtxt(pred_file)

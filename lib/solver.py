@@ -4,8 +4,8 @@ from lib.progressbar import progress_bar
 from tqdm import tqdm
 
 
-def train_epoch(model, criterion, optimizer, train_loader, epoch,
-                device=torch.device('cuda'), dtype=torch.float, metrics_calc=None, wandb_run=None):
+def train_epoch(model, criterion, optimizer, train_loader, result_collector=None,
+                device=torch.device('cuda'), dtype=torch.float, wandb_run=None):
     model.train()
     train_loss = 0
 
@@ -19,19 +19,18 @@ def train_epoch(model, criterion, optimizer, train_loader, epoch,
         optimizer.step()
 
         train_loss += loss.item()
-        metrics = {}
-        if metrics_calc:
-            metrics = metrics_calc(outputs, targets, extras)
 
         if wandb_run:
             wandb_run.log({"train": {
                 "loss": train_loss / (batch_idx + 1),
-                **metrics,
             }})
 
+        if result_collector:
+            result_collector((inputs, outputs, extras))
 
-def val_epoch(model, criterion, val_loader, epoch,
-              device=torch.device('cuda'), dtype=torch.float, metrics_calc=None, wandb_run=None):
+
+def val_epoch(model, criterion, val_loader, result_collector=None,
+              device=torch.device('cuda'), dtype=torch.float, wandb_run=None):
     model.eval()
     val_loss = 0
 
@@ -43,15 +42,14 @@ def val_epoch(model, criterion, val_loader, epoch,
             loss = criterion(outputs, targets)
 
             val_loss += loss.item()
-            metrics = {}
-            if metrics_calc:
-                metrics = metrics_calc(outputs, targets, extras)
 
             if wandb_run:
                 wandb_run.log({"val": {
                     "loss": val_loss / (batch_idx + 1),
-                    **metrics,
                 }})
+
+            if result_collector:
+                result_collector((inputs, outputs, extras))
 
 
 def test_epoch(model, test_loader, result_collector,

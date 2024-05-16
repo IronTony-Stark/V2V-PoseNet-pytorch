@@ -74,8 +74,8 @@ class MARAHandDataset(Dataset):
         
         self._load()
 
-    def get_data(self):
-        return self.names, self.joints_world, self.ref_pts
+    def get_gt_joints(self):
+        return self.joints_world
     
     def __getitem__(self, index):
         depthmap = load_depthmap(self.names[index], self.img_width, self.img_height, self.max_depth)
