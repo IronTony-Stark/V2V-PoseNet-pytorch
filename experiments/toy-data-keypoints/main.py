@@ -105,7 +105,7 @@ class Config:
 
     save_checkpoint = True
     checkpoint_per_epochs = 5
-    checkpoint_dir = r'./checkpoint/keypoints' if keypoints else r'./checkpoint/regression'
+    checkpoint_dir = r'./checkpoints/keypoints' if keypoints else r'./checkpoints/regression'
 
     start_epoch = resume_after_epoch if resume_train else 0
     epochs_num = 100

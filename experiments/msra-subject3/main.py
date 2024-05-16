@@ -57,7 +57,7 @@ resume_after_epoch = args.resume
 
 save_checkpoint = True
 checkpoint_per_epochs = 1
-checkpoint_dir = r'./checkpoint'
+checkpoint_dir = r'./checkpoints'
 
 start_epoch = 0
 epochs_num = 3

@@ -65,6 +65,8 @@ class Model(nn.Module):
         heatmap = self.basic_model(x)
         coord = self.spatial_softmax(heatmap)
 
+        # from v2v_util import extract_coord_from_output
+        # coord_expected = extract_coord_from_output(heatmap.detach().cpu().numpy()) * 2.0
         #print('model heatmap: {}'.format(heatmap.dtype))
 
         output = {

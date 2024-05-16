@@ -54,20 +54,22 @@ resume_after_epoch = args.resume
 
 save_checkpoint = True
 checkpoint_per_epochs = 1
-checkpoint_dir = r'./checkpoint'
+checkpoint_dir = r'./checkpoints'
 
 start_epoch = 0
 epochs_num = 15
 
 batch_size = 12
 
+loader_num_workers = 6 if platform.system() != 'Windows' else 0
+
 
 #######################################################################################
 ## Data, transform, dataset and loader
 # Data
 print('==> Preparing data ..')
-data_dir = r'/home/maiqi/yalong/dataset/cvpr15_MSRAHandGestureDB'
-center_dir = r'/home/maiqi/yalong/project/KeyPoint/Code/V2V-PoseNet-Rlease-Codes/V2V-PoseNet_RELEASE-hand/data-result/MSRA-result/center'
+data_dir = "C:/Data/cvpr15_MSRAHandGestureDB"
+center_dir = "C:/Projects/V2V-PoseNet-pytorch/datasets/msra_center"
 keypoints_num = 21
 test_subject_id = 3
 cubic_size = 200
@@ -121,13 +123,13 @@ def transform_val(sample):
 
 # Dataset and loader
 train_set = MARAHandDataset(data_dir, center_dir, 'train', test_subject_id, transform_train)
-train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=6)
+train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=loader_num_workers)
 # train_num = 24
 # train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=False, num_workers=6,sampler=ChunkSampler(train_num, 0))
 
 # No separate validation dataset, just use test dataset instead
 val_set = MARAHandDataset(data_dir, center_dir, 'test', test_subject_id, transform_val)
-val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=6)
+val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=loader_num_workers)
 # val_num = 24
 # val_loader = torch.utils.data.DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=6, sampler=ChunkSampler(val_num))
 
