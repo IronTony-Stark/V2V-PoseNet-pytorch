@@ -5,15 +5,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 from lib.accuracy import *
 from vis.plot import *
+from datasets.msra_hand import MARAHandDataset
 
 
-gt_file = r'../../test_s3_gt.txt'
+# data_dir = r'/gpfs/space/home/zaliznyi/data/cvpr15_MSRAHandGestureDB'
+# center_dir = r'/gpfs/space/home/zaliznyi/projects/V2V-PoseNet-pytorch/datasets/msra_center'
+data_dir = "C:/Data/cvpr15_MSRAHandGestureDB"
+center_dir = "C:/Projects/V2V-PoseNet-pytorch/datasets/msra_center"
+test_subject_id = 3
+
+test_dataset = MARAHandDataset(root=data_dir, center_dir=center_dir, mode='test', test_subject_id=test_subject_id)
+_, gt, _ = test_dataset.get_data()
+
 pred_file = r'../../test_res.txt'
-
-
-gt = np.loadtxt(gt_file)
-gt = gt.reshape(gt.shape[0], -1, 3)
-
 pred = np.loadtxt(pred_file)
 pred = pred.reshape(pred.shape[0], -1, 3)
 
